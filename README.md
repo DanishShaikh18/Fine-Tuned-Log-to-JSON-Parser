@@ -55,13 +55,19 @@ Fine-Tuned-Log-to-JSON-Parser/
 │   ├── main.py                   # FastAPI application running offline llama.cpp inference
 │   └── test_sender.py            # Test script to evaluate the live Cloud Run endpoint
 ├── data/
-│   └── ...                       # Raw logs, target schemas, and final ChatML datasets
+│   ├── generated/                # Final datasets ready for training
+│   ├── processing_chunks/        # Intermediate processed chunks
+│   ├── raw_logs/                 # Raw, unstructured log files
+│   ├── target/                   # Target schemas or expected JSON outputs
+│   └── training/                 # ChatML formatted training data
 ├── models/
 │   └── llama-3.2-1b-instruct.Q4_K_M.gguf  # Quantized 4-bit edge model (Excluded from Git)
 ├── notebooks/
 │   └── edge_training.ipynb       # End-to-end Unsloth QLoRA training and GGUF export workflow
 ├── scripts/
-│   └── ...                       # Python scripts for synthetic log generation and ETL
+│   ├── build_dataset.py          # Script to assemble the final training dataset
+│   ├── generate_logs.py          # Python script for synthetic log generation
+│   └── prepare_chunks.py         # Script to prepare data chunks for processing
 ├── Dockerfile                    # Multi-stage containerization for Cloud Run
 ├── requirements.txt              # Core API dependencies (FastAPI, llama-cpp-python, etc.)
 └── requirements-training.txt     # Heavy ML dependencies (Torch, Transformers, Unsloth)
