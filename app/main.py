@@ -1,9 +1,19 @@
 from fastapi import FastAPI, Body, Request
+from fastapi.middleware.cors import CORSMiddleware
 from llama_cpp import Llama
 import json
 from pathlib import Path
 
 app = FastAPI(title="Edge Logging Firewall")
+
+# Configure CORS for frontend access (localhost and GitHub Pages)
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:8000", "*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 # Resolve model path dynamically relative to project root
 MODEL_PATH = Path(__file__).resolve().parent.parent / "models" / "llama-3.2-1b-instruct.Q4_K_M.gguf"
@@ -21,9 +31,10 @@ llm = Llama(
 # If you remove or change this, the model will hallucinate and fail to output JSON.
 SYSTEM_PROMPT = "You are an Edge Logging Firewall. Analyze backend production logs, ignore irrelevant noise, redact sensitive PII, and output ONLY valid JSON matching the telemetry schema."
 
-# Accept plain text directly so Swagger UI renders a large raw text box for pasting paragraphs
+# Accept plain text directly since the frontend sends raw string instead of standard JSON
 @app.post("/distill_logs")
-async def analyze_logs(raw_log: str = Body(..., media_type="text/plain", description="Paste your raw logs or paragraphs directly here.")):
+async def analyze_logs(request: Request):
+    raw_log = (await request.body()).decode("utf-8")
     
     # Format the payload exactly like the training data layout
     messages = [
