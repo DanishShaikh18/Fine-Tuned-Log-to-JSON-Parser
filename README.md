@@ -6,7 +6,9 @@
 ![Llama](https://img.shields.io/badge/Llama_3.2_1B-PEFT%20%2F%20QLoRA-0467DF?style=for-the-badge)
 ![llama.cpp](https://img.shields.io/badge/llama.cpp-CPU_Inference-FF7F00?style=for-the-badge)
 
-**🌐 Live API / Swagger UI**: [https://log-distiller-service-491483155818.asia-south1.run.app/docs](https://log-distiller-service-491483155818.asia-south1.run.app/docs)
+**🌐 Live Web Frontend**: [https://danishshaikh18.github.io/Fine-Tuned-Log-to-JSON-Parser/](https://danishshaikh18.github.io/Fine-Tuned-Log-to-JSON-Parser/)
+
+**⚡ Backend API / Swagger UI**: [https://log-distiller-service-491483155818.asia-south1.run.app/docs](https://log-distiller-service-491483155818.asia-south1.run.app/docs)
 
 **An end-to-end AI & Cloud project that intercepts raw backend logs, leverages a fine-tuned LLM to redact PII and extract structured JSON telemetry, and runs entirely serverless on Google Cloud.**
 
@@ -20,6 +22,24 @@ In modern cloud environments, microservices generate massive volumes of unstruct
 
 By utilizing **GGUF quantization** and **llama.cpp**, this inference runs entirely on cost-effective CPUs. The entire system is deployed on **Google Cloud Run** using a scale-to-zero architecture, demonstrating a practical, highly optimized intersection of **AI Engineering and Cloud DevOps**.
 
+> **Note:** The current model has been strictly trained on **GCP-specific log formats** (e.g., Pub/Sub acknowledgements, GoogleCloudError deadlines, Cloud SQL connections) rather than general unstructured logs. It excels at parsing typical Google Cloud Platform microservice telemetry.
+
+---
+
+## 🧠 AI & Fine-Tuning Pipeline
+
+The underlying intelligence is driven by a rigorously fine-tuned model optimized for edge deployments, detailed in the `notebooks/edge_training.ipynb` file.
+
+1. **Base Model**: `Llama-3.2-1B-Instruct`
+2. **Synthetic Data Engineering**: Generated hundreds of multiline log clusters representing real-world GCP failure modes (e.g., Pub/Sub deadline exceeded, Postgres connection pool failures) formatted into strict Hugging Face ChatML. The dataset was pre-tokenized, averaging ~607 tokens per example.
+3. **Parameter-Efficient Fine-Tuning (PEFT)**: 
+   - Fine-tuned using **QLoRA** via **Unsloth** (`r=16`, `lora_alpha=16`), targeting all primary attention layers (`q_proj`, `k_proj`, `v_proj`, `o_proj`, `gate_proj`, `up_proj`, `down_proj`).
+   - Enabled `use_gradient_checkpointing = "unsloth"` to massively reduce VRAM footprint.
+4. **Training Dynamics**: 
+   - Employed the 8-bit Adam optimizer (`adamw_8bit`) and Gradient Accumulation (steps=4) over 100 training steps (2 epochs).
+   - Achieved rapid convergence, with the **training loss dropping from 0.627 to 0.542**, and validation loss stabilizing around 0.569.
+5. **Edge Quantization**: The final model weights were merged and exported to a **4-bit GGUF format (`Q4_K_M`)**. This reduced the memory footprint to ~700MB, making serverless, zero-GPU deployment mathematically viable on standard cloud instances.
+
 ---
 
 ## ☁️ Cloud Architecture (GCP Deployment)
@@ -28,22 +48,10 @@ The deployment is architected for maximum cost-efficiency, strict security, and 
 
 - **Serverless Compute (Google Cloud Run)**: The FastAPI application and containerized `llama.cpp` inference engine are deployed to Cloud Run (`asia-south1`).
 - **Scale-to-Zero Configuration**: `min-instances=0` ensures that zero compute costs are incurred when the API is idle. `max-instances=2` provides a strict ceiling to prevent runaway billing under heavy load.
-- **Optimized CPU Inference**: Allocated exactly **1 vCPU and 2Gi Memory** per instance.
+- **Optimized CPU Inference**: Allocated exactly **1 vCPU and 2Gi Memory** per instance to handle the ~700MB `Q4_K_M` model efficiently.
 - **Strict Concurrency**: Configured with `concurrency=1`. This is a critical engineering decision for LLM inference on CPUs, ensuring that each request has exclusive access to the instance's RAM and CPU, preventing memory exhaustion and latency spikes.
 - **Container Registry**: Docker images are built and stored securely in **Google Artifact Registry**.
 - **Least-Privilege Security**: Operates under a dedicated IAM Service Account (`log-parser-runner`), replacing the default compute account to maintain strict access boundaries.
-
----
-
-## 🧠 AI & Fine-Tuning Pipeline
-
-The underlying intelligence is driven by a rigorously fine-tuned model optimized for edge deployments.
-
-1. **Base Model**: `Llama-3.2-1B-Instruct`
-2. **Synthetic Data Engineering**: Generated hundreds of multiline log clusters representing real-world failure modes (e.g., `DatabaseTimeout`, `AuthExhaustion`), multiline stack traces, and routine health checks, formatted into strict Hugging Face ChatML.
-3. **Parameter-Efficient Fine-Tuning (PEFT)**: Fine-tuned using **QLoRA** via **Unsloth** (`r=16`, `lora_alpha=16`), targeting all primary attention layers.
-4. **Stable Convergence**: Employed the 8-bit Adam optimizer (`adamw_8bit`) and Gradient Accumulation over 100 training steps.
-5. **Edge Quantization**: The final model weights were merged and exported to a **4-bit GGUF format (`Q4_K_M`)**. This reduced the memory footprint to ~700MB, making serverless, zero-GPU deployment mathematically viable.
 
 ---
 
@@ -109,7 +117,7 @@ If you wish to run the containerized service locally:
 
 1. **Clone the repository**:
    ```bash
-   git clone https://github.com/your-username/Fine-Tuned-Log-to-JSON-Parser.git
+   git clone https://github.com/danishshaikh18/Fine-Tuned-Log-to-JSON-Parser.git
    cd Fine-Tuned-Log-to-JSON-Parser
    ```
 2. **Provide the Model**:
@@ -121,3 +129,11 @@ If you wish to run the containerized service locally:
    ```
 4. **Access the UI**:
    Navigate to `http://localhost:8080/docs` to use the interactive Swagger UI.
+
+---
+
+## 🔮 Future Scope
+
+- **Larger Parameter Models**: Upgrading the base model from 1B to a **3B or 4B parameter model** (e.g., Llama-3-8B or Qwen-2.5-3B quantized) to improve complex stack-trace reasoning and better zero-shot anomaly detection, while keeping CPU inference viable.
+- **Broader Log Support**: Expanding the training dataset beyond GCP-specific formats to natively support logs from AWS (CloudWatch), Azure (Monitor), NGINX, Apache, and standard Kubernetes container logs.
+- **Streaming Inference**: Implementing streaming JSON output for large bulk log uploads to reduce perceived latency.
